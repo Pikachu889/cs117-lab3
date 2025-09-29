@@ -1,44 +1,133 @@
 section .data
-    num1 db 5       ; First number
-    num2 db 7       ; Second number
-    result db 0     ; Storage for the sum
-    msg db "The sum is: ", 0   ; Message to display before the sum
-    msg_len equ $ - msg - 1 ; Length of the message (excluding null terminator)
+    num1        dq 5
+    num2        dq 3
+
+    sum_msg     db "Sum: ", 0
+    prod_msg    db "Product: ", 0
+    newline     db 10
+
+    sum_str     times 20 db 0      ; buffer for sum
+    prod_str    times 20 db 0      ; buffer for product
 
 section .text
     global _start
 
 _start:
-    ; Load the first number into AL
-    mov al, [num1]
+    ; === Addition ===
+    mov rax, [num1]
+    add rax, [num2]
+    mov rdi, sum_str
+    call int_to_str       ; RAX = length of sum
+    mov r8, rax           ; save sum length
 
-    ; Add the second number to AL
-    add al, [num2]
+    ; Print "Sum: "
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, sum_msg
+    mov rdx, 5
+    syscall
 
-    ; Store the result in 'result'
-    mov [result], al
+    ; Print sum string
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, sum_str
+    mov rdx, r8           ; correct sum length
+    syscall
 
-    ; --- Outputting the result ---
+    ; Print newline
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, newline
+    mov rdx, 1
+    syscall
 
-    ; Display the introductory message
-    mov edx, msg_len    ; Length of the message
-    mov ecx, msg        ; Address of the message
-    mov ebx, 1          ; File descriptor (stdout)
-    mov eax, 4          ; System call for sys_write
-    int 0x80            ; Call the kernel
+    ; === Multiplication ===
+    mov rax, [num1]
+    imul rax, [num2]
+    mov rdi, prod_str
+    call int_to_str       ; RAX = length of product
+    mov r8, rax           ; save product length
 
-    ; Convert the numerical result to its ASCII character representation
-    ; (assuming the sum is a single digit, add '0' to convert to ASCII)
-    add byte [result], '0'
+    ; Print "Product: "
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, prod_msg
+    mov rdx, 9
+    syscall
 
-    ; Display the sum
-    mov edx, 1          ; Length of the sum (single digit)
-    mov ecx, result     ; Address of the sum
-    mov ebx, 1          ; File descriptor (stdout)
-    mov eax, 4          ; System call for sys_write
-    int 0x80            ; Call the kernel
+    ; Print product string
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, prod_str
+    mov rdx, r8           ; correct product length
+    syscall
 
-    ; Exit the program
-    mov eax, 1          ; System call for sys_exit
-    xor ebx, ebx        ; Exit status 0
-    int 0x80            ; Call the kernel
+    ; Print newline
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, newline
+    mov rdx, 1
+    syscall
+
+    ; === Exit ===
+    mov rax, 60
+    xor rdi, rdi
+    syscall
+
+; ============================================
+; int_to_str: Converts RAX (integer) to string
+; input : RAX = integer, RDI = pointer to buffer
+; output: ASCII string at [RDI], RAX = length
+; ============================================
+int_to_str:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+
+    mov rcx, 0              ; digit counter
+    mov rbx, 10
+    mov rsi, rdi            ; buffer pointer
+
+    cmp rax, 0
+    jne .convert
+    mov byte [rsi], '0'
+    mov rax, 1              ; length = 1
+    jmp .done_restore
+
+.convert:
+.loop:
+    xor rdx, rdx
+    div rbx
+    add dl, '0'
+    mov [rsi], dl
+    inc rsi
+    inc rcx
+    test rax, rax
+    jnz .loop
+
+    ; Reverse digits
+    mov rax, rcx            ; save length
+    mov rdx, rdi            ; start
+    mov rsi, rsi
+    dec rsi                 ; end pointer
+.rev_loop:
+    cmp rdx, rsi
+    jge .reverse_done
+    mov bl, [rdx]
+    mov cl, [rsi]
+    mov [rdx], cl
+    mov [rsi], bl
+    inc rdx
+    dec rsi
+    jmp .rev_loop
+
+.reverse_done:
+    mov byte [rdi + rax], 0 ; null-terminate
+
+.done_restore:
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
